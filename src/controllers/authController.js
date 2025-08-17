@@ -13,7 +13,6 @@ const generateTokens = (user) => {
 
 export const register = async (req, res) => {
   const { name, email, password } = req.body;
-
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
@@ -43,7 +42,7 @@ export const login = async (req, res) => {
       id: user.id,
       email: user.email,
       role: user.role,
-    });
+    }); 
 
     // Store refresh token in DB
     await pool.query(
@@ -51,7 +50,16 @@ export const login = async (req, res) => {
       [user.id, refreshToken]
     );
 
-    res.json({ accessToken, refreshToken });
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      accessToken
+      // refreshToken
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Login failed" });
@@ -81,5 +89,21 @@ export const refreshAccessToken = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not refresh token" });
+  }
+};
+
+export const verifyToken = (req, res) => {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ valid: false, error: "No token" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return res.json({ valid: true, user: decoded });
+  } catch (err) {
+    return res.status(401).json({ valid: false, error: "Invalid or expired token" });
   }
 };

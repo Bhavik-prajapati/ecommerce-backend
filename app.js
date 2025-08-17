@@ -32,10 +32,15 @@ const options = {
 const app = express();
 dotenv.config();    
 
+// app.use(cors());
+app.use(cors({
+  origin: "http://localhost:5173", // Vite default port
+  credentials: true
+}));
+app.use(express.json());
+
 expressJSDocSwagger(app)(options);
 
-app.use(cors());
-app.use(express.json());
 
 
 app.use("/api/auth", authRoutes);
