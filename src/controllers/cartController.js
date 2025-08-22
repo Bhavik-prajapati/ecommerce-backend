@@ -3,16 +3,13 @@ import pool from "../config/db.js";
 // ✅ Add to cart (returns updated cart)
 export const addToCart = async (req, res) => {
   const { product_id, quantity } = req.body;
-
   try {
-    // Check if item already exists
     const existing = await pool.query(
       `SELECT * FROM cart_items WHERE user_id = $1 AND product_id = $2`,
       [req.user.id, product_id]
     );
 
     if (existing.rows.length > 0) {
-      // Update quantity
       await pool.query(
         `UPDATE cart_items 
          SET quantity = quantity + $1 
@@ -20,7 +17,6 @@ export const addToCart = async (req, res) => {
         [quantity, req.user.id, product_id]
       );
     } else {
-      // Insert new item
       await pool.query(
         `INSERT INTO cart_items (user_id, product_id, quantity) 
          VALUES ($1, $2, $3)`,
@@ -28,7 +24,6 @@ export const addToCart = async (req, res) => {
       );
     }
 
-    // ✅ Return updated cart
     const result = await pool.query(
       `SELECT c.id, c.product_id, p.name, p.price, c.quantity
        FROM cart_items c
@@ -43,7 +38,6 @@ export const addToCart = async (req, res) => {
   }
 };
 
-// ✅ Get all cart items
 export const getCart = async (req, res) => {
   try {
     const result = await pool.query(
@@ -59,7 +53,6 @@ export const getCart = async (req, res) => {
   }
 };
 
-// ✅ Update a specific cart item
 export const updateCartItem = async (req, res) => {
   const { quantity } = req.body;
   try {
@@ -70,7 +63,6 @@ export const updateCartItem = async (req, res) => {
       [quantity, req.params.id, req.user.id]
     );
 
-    // Return updated cart
     const result = await pool.query(
       `SELECT c.id, c.product_id, p.name, p.price, p.image_url,c.quantity
        FROM cart_items c
@@ -85,7 +77,6 @@ export const updateCartItem = async (req, res) => {
   }
 };
 
-// ✅ Remove single cart item
 export const removeCartItem = async (req, res) => {
   try {
     await pool.query(
@@ -94,7 +85,6 @@ export const removeCartItem = async (req, res) => {
       [req.params.id, req.user.id]
     );
 
-    // Return updated cart
     const result = await pool.query(
       `SELECT c.id, c.product_id, p.name, p.price,p.image_url, c.quantity
        FROM cart_items c
@@ -109,15 +99,13 @@ export const removeCartItem = async (req, res) => {
   }
 };
 
-// ✅ Clear entire cart
 export const clearCart = async (req, res) => {
   try {
     await pool.query(
       `DELETE FROM cart_items WHERE user_id = $1`,
       [req.user.id]
     );
-
-    res.json([]); // return empty cart
+    res.json([]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

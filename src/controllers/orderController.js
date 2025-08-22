@@ -1,36 +1,84 @@
 import pool from "../config/db.js";
 
 export const createOrder = async (req, res) => {
-  const { items, total_amount } = req.body; // items = [{ product_id, quantity, price }]
   const client = await pool.connect();
-
   try {
-    await client.query("BEGIN");
+    await client.query("BEGIN"); // transaction start
 
-    // Insert into orders
-    const orderResult = await client.query(
-      `INSERT INTO orders (user_id, total_amount) VALUES ($1, $2) RETURNING *`,
-      [req.user.id, total_amount]
-    );
-    const order = orderResult.rows[0];
+    const orderData = req.body;
+    console.log("📦 Order received from frontend:", orderData);
+    
+    const {
+      receivername,
+      mobile_no,
+      address_line1,
+      address_line2,
+      city,
+      state,
+      postal_code,
+      country,
+    } = orderData.shippingAddress;
 
-    // Insert order items
-    for (const item of items) {
-      await client.query(
-        `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)`,
-        [order.id, item.product_id, item.quantity, item.price]
-      );
-    }
+    // ⚠️ user_id from auth
+    const userId = req.user?.id || null;
 
-    await client.query("COMMIT");
-    res.status(201).json({ message: "Order created", order_id: order.id });
+    // ✅ Insert shipping address
+    const insertAddressQuery = `
+      INSERT INTO shipping_addresses
+      (user_id, receivername, mobile_no, address_line1, address_line2, city, state, postal_code, country)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      RETURNING *;
+    `;
+    const addressValues = [
+      userId,
+      receivername,
+      mobile_no,
+      address_line1,
+      address_line2 || null,
+      city,
+      state,
+      postal_code,
+      country,
+    ];
+
+    const addressResult = await client.query(insertAddressQuery, addressValues);
+    const savedAddress = addressResult.rows[0];
+
+    // ✅ Insert order
+    const insertOrderQuery = `
+      INSERT INTO orders
+      (product_id, quantity, total_price, shipping_address_id)
+      VALUES ($1,$2,$3,$4)
+      RETURNING *;
+    `;
+    const orderValues = [
+      orderData.productId,
+      orderData.quantity,
+      orderData.total,
+      savedAddress.id,
+    ];
+
+    const orderResult = await client.query(insertOrderQuery, orderValues);
+    const savedOrder = orderResult.rows[0];
+
+    await client.query("COMMIT"); // success
+
+    res.status(201).json({
+      message: "Order received successfully",
+      order: {
+        ...savedOrder,
+        shippingAddress: savedAddress,
+      },
+    });
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK"); // rollback on error
+    console.error("❌ Error creating order:", err);
     res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
 };
+
     
 export const getOrders = async (req, res) => {
   try {

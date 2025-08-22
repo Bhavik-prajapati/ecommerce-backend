@@ -1,63 +1,72 @@
-// controllers/paymentController.js
+import Razorpay from "razorpay";
+import dotenv from "dotenv";
 import pool from "../config/db.js";
+dotenv.config();
 
-export const createPayment = async (req, res) => {
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
-    console.log(req.body,"")
-  const { order_id, payment_method, amount } = req.body;
-  const user_id = req.user.id; // from auth middleware
-
+export const createRazorpayOrder = async (req, res) => {
   try {
-    // Check if order exists and belongs to user
-    const orderCheck = await pool.query(
-      "SELECT * FROM orders WHERE id = $1 AND user_id = $2",
-      [order_id, user_id]
-    );
+    const { amount, currency = "INR", receipt } = req.body;
 
-    if (orderCheck.rows.length === 0) {
-      return res.status(404).json({ message: "Order not found" });
-    }
+    const options = {
+      amount: Math.round(amount * 100), // amount in paise
+      currency,
+      receipt: receipt || "receipt_" + Date.now(),
+    };
 
-    // Insert payment record
-    const payment = await pool.query(
-      `INSERT INTO payments (order_id, user_id, payment_method, amount, status, transaction_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [order_id, user_id, payment_method, amount, "paid", `TXN-${Date.now()}`]
-    );
+    const order = await razorpay.orders.create(options);
 
-    // Update order status
-    await pool.query(
-      "UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-      ["paid", order_id]
-    );
-
-    res.status(201).json({
-      message: "Payment successful",
-      payment: payment.rows[0],
+    res.json({
+      id: order.id,
+      currency: order.currency,
+      amount: order.amount,
     });
-  } catch (error) {
-    console.error("Payment error:", error);
-    res.status(500).json({ message: "Server error" });
+  } catch (err) {
+    console.error("❌ Razorpay order error:", err);
+    res.status(500).json({ error: "Payment initiation failed" });
   }
 };
 
-export const getPaymentByOrderId = async (req, res) => {
-  const { order_id } = req.params;
-  const user_id = req.user.id;
 
+
+
+export const updateOrderStatus = async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT * FROM payments WHERE order_id = $1 AND user_id = $2",
-      [order_id, user_id]
-    );
+    const { orderId,razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Payment not found" });
+    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+      return res.status(400).json({ error: "Missing payment details" });
     }
 
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error("Get payment error:", error);
-    res.status(500).json({ message: "Server error" });
+    // ✅ Find the order by razorpay_order_id and update payment details
+    const query = `
+      UPDATE orders
+      SET razorpay_payment_id = $1,
+          razorpay_order_id   = $2,
+          razorpay_signature  = $3,
+          payment_status      = 'paid'
+      WHERE id = $4
+      RETURNING *;
+    `;
+
+    const values = [razorpay_payment_id, razorpay_order_id, razorpay_signature,orderId];
+    const result = await pool.query(query, values);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    res.status(200).json({
+      message: "✅ Payment status updated",
+      order: result.rows[0],
+    });
+  } catch (err) {
+    console.error("❌ Razorpay update error:", err);
+    res.status(500).json({ error: "Failed to update order" });
   }
 };
+
