@@ -24,6 +24,7 @@ export const createRazorpayOrder = async (req, res) => {
       id: order.id,
       currency: order.currency,
       amount: order.amount,
+      userEmail:req.user.email
     });
   } catch (err) {
     console.error("❌ Razorpay order error:", err);
