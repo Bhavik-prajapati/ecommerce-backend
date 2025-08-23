@@ -41,7 +41,7 @@ export const addToCart = async (req, res) => {
 export const getCart = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT c.id, c.product_id, p.name, p.price, c.quantity,p.image_url
+      `SELECT p.id as product_id,c.id, c.product_id, p.name, p.price, c.quantity,p.image_url
        FROM cart_items c
        JOIN products p ON c.product_id = p.id
        WHERE c.user_id = $1`,
