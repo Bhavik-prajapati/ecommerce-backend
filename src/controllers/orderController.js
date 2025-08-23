@@ -19,10 +19,7 @@ export const createOrder = async (req, res) => {
       country,
     } = orderData.shippingAddress;
 
-    // ⚠️ user_id from auth
     const userId = req.user?.id || null;
-
-    // ✅ Insert shipping address
     const insertAddressQuery = `
       INSERT INTO shipping_addresses
       (user_id, receivername, mobile_no, address_line1, address_line2, city, state, postal_code, country)
@@ -47,8 +44,8 @@ export const createOrder = async (req, res) => {
     // ✅ Insert order
     const insertOrderQuery = `
       INSERT INTO orders
-      (product_id, quantity, total_price, shipping_address_id)
-      VALUES ($1,$2,$3,$4)
+      (product_id, quantity, total_price, shipping_address_id,user_id)
+      VALUES ($1,$2,$3,$4,$5)
       RETURNING *;
     `;
     const orderValues = [
@@ -56,6 +53,7 @@ export const createOrder = async (req, res) => {
       orderData.quantity,
       orderData.total,
       savedAddress.id,
+      req.user.id
     ];
 
     const orderResult = await client.query(insertOrderQuery, orderValues);
@@ -83,7 +81,7 @@ export const createOrder = async (req, res) => {
 export const getOrders = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
+      `SELECT od.*,ps.* FROM orders od left join products ps on ps.id=od.product_id WHERE user_id = $1 ORDER BY ps.id DESC`,
       [req.user.id]
     );
     res.json(result.rows);
