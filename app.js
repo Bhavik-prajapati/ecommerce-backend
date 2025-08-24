@@ -34,16 +34,13 @@ dotenv.config();
 
 app.use(cors({
   origin: [
-    "http://localhost:5173",  // local dev
+    "http://localhost:5173", // local dev
     "https://ecommerce-frontend-4imw.onrender.com" // deployed frontend
   ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // allow preflight
-  allowedHeaders: ["Content-Type", "Authorization"],    // allow headers
   credentials: true
 }));
 
-app.options("*", cors());
-
+// app.options("*", cors());
 
 app.use(express.json());
 
