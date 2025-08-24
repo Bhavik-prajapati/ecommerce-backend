@@ -29,7 +29,7 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   console.log('<++++++++++++inside login++++++++++++++++++++++++++++>')
-  console.log('<++++++++++++inside login++++++++++++++++++++++++++++>')
+  console.log('<++++++++++++inside login++++++++++++++  ++++++++++++++>')
   console.log('<++++++++++++inside login++++++++++++++++++++++++++++>')
   console.log('_________________________________',req.body)
   const { email, password } = req.body;
