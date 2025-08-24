@@ -32,11 +32,14 @@ const options = {
 const app = express();
 dotenv.config();    
 
-// app.use(cors());
 app.use(cors({
-  origin: "http://localhost:5173", // Vite default port
+  origin: [
+    "http://localhost:5173", // local dev
+    "https://ecommerce-frontend-4imw.onrender.com" // deployed frontend
+  ],
   credentials: true
 }));
+
 app.use(express.json());
 
 expressJSDocSwagger(app)(options);
