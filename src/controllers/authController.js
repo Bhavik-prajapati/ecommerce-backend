@@ -13,6 +13,7 @@ const generateTokens = (user) => {
 
 export const register = async (req, res) => {
   const { name, email, password } = req.body;
+  console.log(req.body , "_______________")
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
