@@ -118,7 +118,10 @@ export const createOrder = async (req, res) => {
 export const getOrders = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
+      `SELECT p.image_url,*
+        FROM orders o
+        LEFT JOIN order_items ot ON o.id = ot.order_id
+        LEFT JOIN products p ON p.id = ot.product_id where o.user_id=$1;`,
       [req.user.id]
     );
     res.json(result.rows);
