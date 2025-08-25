@@ -35,7 +35,7 @@ dotenv.config();
 app.use(cors({
   origin: [
     "http://localhost:5173", // local dev,
-    "resilient-dolphin-c615b3.netlify.app",
+    "https://shop-ecom-ease.netlify.app",
     "https://ecommerce-frontend-4imw.onrender.com" // deployed frontend
   ],
   credentials: true
