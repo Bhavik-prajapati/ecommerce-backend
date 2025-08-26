@@ -7,26 +7,26 @@ const router = express.Router();
 router.get("/profile", authenticate, async (req, res) => {
   const client = await pool.connect();
   try {
-    const query = `
-      SELECT 
-        u.id,
-        u.name,
-        u.email,
-        u.role,
-        COALESCE(json_agg(o.*) FILTER (WHERE o.id IS NOT NULL), '[]') AS orders
-      FROM users u
-      LEFT JOIN orders o ON u.id = o.user_id
-      WHERE u.id = $1
-      GROUP BY u.id, u.name, u.email, u.role;
-    `;
+    // Call the function with the user ID
+    const query = `SELECT * FROM get_user_with_orders($1);`;
     const result = await client.query(query, [req.user.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json(result.rows[0]);
+    const user = result.rows[0];
+
+    // Add invoice_url to each order
+    if (user.orders && user.orders.length > 0) {
+      user.orders = user.orders.map((order) => ({
+        ...order,
+      }));
+    }
+
+    res.json(user); // returns user with nested orders + invoice link
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   } finally {
     client.release();

@@ -121,7 +121,7 @@ export const getOrders = async (req, res) => {
       `SELECT p.image_url,*
         FROM orders o
         LEFT JOIN order_items ot ON o.id = ot.order_id
-        LEFT JOIN products p ON p.id = ot.product_id where o.user_id=$1;`,
+        LEFT JOIN products p ON p.id = ot.product_id where o.user_id=$1 order by o.id desc;`,
       [req.user.id]
     );
     res.json(result.rows);
