@@ -1,6 +1,9 @@
 import pool from "../config/db.js";
 
 // ✅ Create Order
+
+// ✅ Create Order using Postgres functions
+// ✅ Create Order Controller
 export const createOrder = async (req, res) => {
   const client = await pool.connect();
   try {
@@ -21,28 +24,27 @@ export const createOrder = async (req, res) => {
 
     const userId = req.user?.id || null;
 
-    // ✅ Insert shipping address
-    const insertAddressQuery = `
-      INSERT INTO shipping_addresses
-      (user_id, receivername, mobile_no, address_line1, address_line2, city, state, postal_code, country)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-      RETURNING *;
-    `;
-    const addressValues = [
-      userId,
-      receivername,
-      mobile_no,
-      address_line1,
-      address_line2 || null,
-      city,
-      state,
-      postal_code,
-      country,
-    ];
-    const addressResult = await client.query(insertAddressQuery, addressValues);
+    // ✅ Call insert_shipping_address function
+    const addressResult = await client.query(
+      `SELECT * FROM insert_shipping_address(
+        $1::INT, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR,
+        $6::VARCHAR, $7::VARCHAR, $8::VARCHAR, $9::VARCHAR
+      )`,
+      [
+        userId,
+        receivername,
+        mobile_no,
+        address_line1,
+        address_line2 || null,
+        city,
+        state,
+        postal_code,
+        country,
+      ]
+    );
     const savedAddress = addressResult.rows[0];
 
-    // ✅ Calculate total price
+    // ✅ Calculate total order price
     let totalOrderPrice = 0;
     if (orderData.products && orderData.products.length > 0) {
       totalOrderPrice = orderData.products.reduce(
@@ -53,53 +55,33 @@ export const createOrder = async (req, res) => {
       totalOrderPrice = parseFloat(orderData.price) * orderData.quantity;
     }
 
-    // ✅ Insert order (default expected delivery = 5 days)
-    const insertOrderQuery = `
-      INSERT INTO orders
-      (user_id, shipping_address_id, total_price, payment_status, expected_delivery_date)
-      VALUES ($1,$2,$3,$4, NOW() + INTERVAL '5 days')
-      RETURNING *;
-    `;
-    const orderValues = [
-      userId,
-      savedAddress.id,
-      totalOrderPrice.toFixed(2),
-      "pending",
-    ];
-    const orderResult = await client.query(insertOrderQuery, orderValues);
+    // ✅ Call insert_order function
+    const orderResult = await client.query(
+      `SELECT * FROM insert_order($1::INT, $2::INT, $3::NUMERIC, $4::VARCHAR)`,
+      [userId, savedAddress.id, totalOrderPrice.toFixed(2), "pending"]
+    );
     const savedOrder = orderResult.rows[0];
 
-    // ✅ Insert order items
-    const insertItemQuery = `
-      INSERT INTO order_items
-      (order_id, product_id, quantity, price)
-      VALUES ($1,$2,$3,$4)
-      RETURNING *;
-    `;
     let savedItems = [];
 
+    // ✅ Call insert_order_item for each product
     if (orderData.products && orderData.products.length > 0) {
       for (const product of orderData.products) {
-        const itemValues = [
-          savedOrder.id,
-          product.productId,
-          product.quantity,
-          product.price,
-        ];
-        const itemResult = await client.query(insertItemQuery, itemValues);
+        const itemResult = await client.query(
+          `SELECT * FROM insert_order_item($1::INT, $2::INT, $3::INT, $4::NUMERIC)`,
+          [savedOrder.id, product.productId, product.quantity, product.price]
+        );
         savedItems.push(itemResult.rows[0]);
       }
     } else {
-      const itemValues = [
-        savedOrder.id,
-        orderData.productId,
-        orderData.quantity,
-        orderData.price,
-      ];
-      const itemResult = await client.query(insertItemQuery, itemValues);
+      const itemResult = await client.query(
+        `SELECT * FROM insert_order_item($1::INT, $2::INT, $3::INT, $4::NUMERIC)`,
+        [savedOrder.id, orderData.productId, orderData.quantity, orderData.price]
+      );
       savedItems.push(itemResult.rows[0]);
     }
 
+    // ✅ Commit transaction
     await client.query("COMMIT");
 
     res.status(201).json({
@@ -116,6 +98,8 @@ export const createOrder = async (req, res) => {
     client.release();
   }
 };
+
+
 
 // ✅ Get all orders of logged-in user
 export const getOrders = async (req, res) => {
@@ -164,47 +148,55 @@ export const getOrderById = async (req, res) => {
   }
 };
 
-// ✅ Update order status (with expected delivery update)
 export const updateOrderStatus = async (req, res) => {
-  const { status, expectedDays } = req.body; // expectedDays optional
+  const { orderId, razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+
+  const client = await pool.connect();
   try {
-    let query;
-    let values;
+    await client.query("BEGIN");
 
-    if (status === "shipped") {
-      // if shipped, calculate expected delivery
-      query = `
-        UPDATE orders 
-        SET payment_status = $1,
-            expected_delivery_date = NOW() + INTERVAL '${process.env.DEFAULT_DELIVERY_DAYS} days',
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-        RETURNING *;
-      `;
-      values = [status, req.params.id];
-    } else {
-      query = `
-        UPDATE orders 
-        SET payment_status = $1, 
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-        RETURNING *;
-      `;
-      values = [status, req.params.id];
+    // ✅ Update payment details
+    const orderResult = await client.query(
+      `UPDATE orders 
+       SET payment_status = 'paid',
+           razorpay_payment_id = $1,
+           razorpay_order_id = $2,
+           razorpay_signature = $3,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4
+       RETURNING *`,
+      [razorpay_payment_id, razorpay_order_id, razorpay_signature, orderId]
+    );
+
+    if (orderResult.rows.length === 0) {
+      throw new Error("Order not found");
     }
 
-    const result = await pool.query(query, values);
+    // ✅ Reduce stock for each product in this order
+    const itemsResult = await client.query(
+      `SELECT product_id, quantity FROM order_items WHERE order_id = $1`,
+      [orderId]
+    );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Order not found" });
+    for (const item of itemsResult.rows) {
+      await client.query(
+        `SELECT reduce_stock($1::INT, $2::INT)`,
+        [item.product_id, item.quantity]
+      );
     }
+
+    await client.query("COMMIT");
 
     res.json({
-      message: "✅ Order status updated",
-      order: result.rows[0],
+      message: "✅ Payment successful & stock updated",
+      order: orderResult.rows[0],
     });
   } catch (err) {
-    console.error("❌ Error updating order:", err);
+    await client.query("ROLLBACK");
+    console.error("❌ Error updating order status:", err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 };
+
