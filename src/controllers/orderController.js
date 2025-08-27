@@ -1,5 +1,6 @@
 import pool from "../config/db.js";
 
+// ✅ Create Order
 export const createOrder = async (req, res) => {
   const client = await pool.connect();
   try {
@@ -41,8 +42,7 @@ export const createOrder = async (req, res) => {
     const addressResult = await client.query(insertAddressQuery, addressValues);
     const savedAddress = addressResult.rows[0];
 
-    console.log('address inserted...')
-    // ✅ Calculate total price of the whole order
+    // ✅ Calculate total price
     let totalOrderPrice = 0;
     if (orderData.products && orderData.products.length > 0) {
       totalOrderPrice = orderData.products.reduce(
@@ -53,25 +53,29 @@ export const createOrder = async (req, res) => {
       totalOrderPrice = parseFloat(orderData.price) * orderData.quantity;
     }
 
-    // ✅ Insert into orders (only once per order)
+    // ✅ Insert order (default expected delivery = 5 days)
     const insertOrderQuery = `
       INSERT INTO orders
-      (user_id, shipping_address_id, total_price, payment_status)
-      VALUES ($1,$2,$3,$4)
+      (user_id, shipping_address_id, total_price, payment_status, expected_delivery_date)
+      VALUES ($1,$2,$3,$4, NOW() + INTERVAL '5 days')
       RETURNING *;
     `;
-    const orderValues = [userId, savedAddress.id, totalOrderPrice.toFixed(2), "pending"];
+    const orderValues = [
+      userId,
+      savedAddress.id,
+      totalOrderPrice.toFixed(2),
+      "pending",
+    ];
     const orderResult = await client.query(insertOrderQuery, orderValues);
     const savedOrder = orderResult.rows[0];
 
-    // ✅ Insert into order_items (one per product)
+    // ✅ Insert order items
     const insertItemQuery = `
       INSERT INTO order_items
       (order_id, product_id, quantity, price)
       VALUES ($1,$2,$3,$4)
       RETURNING *;
     `;
-
     let savedItems = [];
 
     if (orderData.products && orderData.products.length > 0) {
@@ -86,7 +90,6 @@ export const createOrder = async (req, res) => {
         savedItems.push(itemResult.rows[0]);
       }
     } else {
-      // Single product
       const itemValues = [
         savedOrder.id,
         orderData.productId,
@@ -100,7 +103,7 @@ export const createOrder = async (req, res) => {
     await client.query("COMMIT");
 
     res.status(201).json({
-      message: "Order placed successfully",
+      message: "✅ Order placed successfully",
       order: savedOrder,
       items: savedItems,
       shippingAddress: savedAddress,
@@ -118,10 +121,12 @@ export const createOrder = async (req, res) => {
 export const getOrders = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT p.image_url,*
-        FROM orders o
-        LEFT JOIN order_items ot ON o.id = ot.order_id
-        LEFT JOIN products p ON p.id = ot.product_id where o.user_id=$1 order by o.id desc;`,
+      `SELECT p.image_url, o.*, ot.quantity, ot.price as item_price
+       FROM orders o
+       LEFT JOIN order_items ot ON o.id = ot.order_id
+       LEFT JOIN products p ON p.id = ot.product_id 
+       WHERE o.user_id=$1 
+       ORDER BY o.id DESC;`,
       [req.user.id]
     );
     res.json(result.rows);
@@ -130,7 +135,7 @@ export const getOrders = async (req, res) => {
   }
 };
 
-// ✅ Get order by ID including items
+// ✅ Get order by ID (with items)
 export const getOrderById = async (req, res) => {
   try {
     const orderResult = await pool.query(
@@ -159,20 +164,47 @@ export const getOrderById = async (req, res) => {
   }
 };
 
-// ✅ Update order status
+// ✅ Update order status (with expected delivery update)
 export const updateOrderStatus = async (req, res) => {
-  const { status } = req.body;
+  const { status, expectedDays } = req.body; // expectedDays optional
   try {
-    const result = await pool.query(
-      `UPDATE orders SET payment_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
-      [status, req.params.id]
-    );
+    let query;
+    let values;
+
+    if (status === "shipped") {
+      // if shipped, calculate expected delivery
+      query = `
+        UPDATE orders 
+        SET payment_status = $1,
+            expected_delivery_date = NOW() + INTERVAL '${process.env.DEFAULT_DELIVERY_DAYS} days',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING *;
+      `;
+      values = [status, req.params.id];
+    } else {
+      query = `
+        UPDATE orders 
+        SET payment_status = $1, 
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING *;
+      `;
+      values = [status, req.params.id];
+    }
+
+    const result = await pool.query(query, values);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Order not found" });
     }
-    res.json(result.rows[0]);
+
+    res.json({
+      message: "✅ Order status updated",
+      order: result.rows[0],
+    });
   } catch (err) {
+    console.error("❌ Error updating order:", err);
     res.status(500).json({ error: err.message });
   }
 };
