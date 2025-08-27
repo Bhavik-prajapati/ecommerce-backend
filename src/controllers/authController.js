@@ -13,29 +13,20 @@ const generateTokens = (user) => {
 
 export const register = async (req, res) => {
   const { name, email, password } = req.body;
-  console.log(req.body , "_______________")
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
       "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, role",
       [name, email, hashedPassword]
     );
-    console.log(result,"result....")
     res.status(201).json({ user: result.rows[0] });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: "User registration failed" });
   }
 };
 
 export const login = async (req, res) => {
-  console.log('<++++++++++++inside login++++++++++++++++++++++++++++>')
-  console.log('<++++++++++++inside login++++++++++++++  ++++++++++++++>')
-  console.log('<++++++++++++inside login++++++++++++++++++++++++++++>')
-  console.log('_________________________________',req.body)
   const { email, password } = req.body;
-  console.log('_________________________________')
-
   try {
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
