@@ -1,14 +1,35 @@
 import pool from "../config/db.js";
 
+// export const getProducts = async (req, res) => {
+//   try {
+//     const result = await pool.query("SELECT * FROM products ORDER BY id DESC");
+//     res.json(result.rows);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Error fetching products" });
+//   }
+// };
+
 export const getProducts = async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM products ORDER BY id DESC");
-    res.json(result.rows);
+    const { limit = 8, offset = 0 } = req.query; 
+    const result = await pool.query(
+      "SELECT * FROM products ORDER BY id DESC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+
+    const countResult = await pool.query("SELECT COUNT(*) FROM products");
+
+    res.json({
+      products: result.rows,
+      total: parseInt(countResult.rows[0].count, 10),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error fetching products" });
   }
 };
+
 
 export const getProductById = async (req, res) => {
   try {
