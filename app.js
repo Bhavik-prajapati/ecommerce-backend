@@ -12,6 +12,7 @@ import expressJSDocSwagger from "express-jsdoc-swagger";
 import cartRoutes from "./src/routes/cartRoutes.js";
 import shippingRoutes from "./src/routes/shippingRoutes.js";
 import reviewRoutes from "./src/routes/reviewRoutes.js";
+import adminRoutes from "./src/routes/adminRoutes.js";
 
 const options = {
   info: {
@@ -33,7 +34,8 @@ app.use(cors({
   origin: [
     "http://localhost:5173", // local dev,
     "https://shop-ecom-ease.netlify.app",
-    "https://ecommerce-frontend-4imw.onrender.com" // deployed frontend
+    "https://ecommerce-frontend-4imw.onrender.com", // deployed frontend
+    "http://localhost:5174", // admin dev,
   ],
   credentials: true
 }));
@@ -51,6 +53,7 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/admin", adminRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

@@ -99,9 +99,6 @@ export const createOrder = async (req, res) => {
   }
 };
 
-
-
-// ✅ Get all orders of logged-in user
 export const getOrders = async (req, res) => {
   try {
     const result = await pool.query(
