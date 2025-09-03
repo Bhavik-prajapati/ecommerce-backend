@@ -1,6 +1,8 @@
 import Razorpay from "razorpay";
 import dotenv from "dotenv";
 import pool from "../config/db.js";
+import { orderPlacedTemplate } from "../utils/mailTemplates.js";
+import { sendMail } from "../utils/mailer.js";
 dotenv.config();
 
 const razorpay = new Razorpay({
@@ -35,39 +37,50 @@ export const createRazorpayOrder = async (req, res) => {
 
 
 
+
 export const updateOrderStatus = async (req, res) => {
   try {
-    const { orderId,razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+    const { orderId, razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
 
     if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
       return res.status(400).json({ error: "Missing payment details" });
     }
 
-    // ✅ Find the order by razorpay_order_id and update payment details
-    const query = `
-      UPDATE orders
-      SET razorpay_payment_id = $1,
-          razorpay_order_id   = $2,
-          razorpay_signature  = $3,
-          payment_status      = 'paid'
-      WHERE id = $4
-      RETURNING *;
-    `;
+    const { rows } = await pool.query(
+      "SELECT * FROM update_order_payment($1, $2, $3, $4)",
+      [orderId, razorpay_payment_id, razorpay_order_id, razorpay_signature]
+    );
 
-    const values = [razorpay_payment_id, razorpay_order_id, razorpay_signature,orderId];
-    const result = await pool.query(query, values);
-
-    if (result.rowCount === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({ error: "Order not found" });
     }
 
+    const order = rows[0];
+
+    console.log(rows)
+    console.log(order,"_+_____________")
+
+
+    await sendMail(
+      order.customer_email, // send to user instead of hardcoding
+      "Your Order has been Placed! 🎉",
+      orderPlacedTemplate({
+        id: order.order_id,
+        customerName: order.customer_name,
+        products: order.products,
+        total: order.total_price,
+      })
+    );
+
     res.status(200).json({
-      message: "✅ Payment status updated",
-      order: result.rows[0],
+      success: true,
+      message: "✅ Payment status updated & mail sent",
+      order,
     });
   } catch (err) {
     console.error("❌ Razorpay update error:", err);
     res.status(500).json({ error: "Failed to update order" });
   }
 };
+
 

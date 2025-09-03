@@ -3,7 +3,7 @@ import {
   createOrder,
   getOrders,
   getOrderById,
-  updateOrderStatus
+  /* updateOrderStatus */
 } from "../controllers/orderController.js";
 
 import { authenticate } from "../middlewares/authMiddleware.js"; // ensure user is logged in
@@ -20,6 +20,6 @@ router.get("/", authenticate, getOrders);
 router.get("/:id", authenticate, getOrderById);
 
 // Update order status (admin or owner)
-router.put("/:id/status", authenticate, updateOrderStatus);
+// router.put("/:id/status", authenticate, updateOrderStatus);
 
 export default router;

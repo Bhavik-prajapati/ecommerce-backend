@@ -1,5 +1,7 @@
 import pool from "../config/db.js";
 import dotenv from "dotenv";
+import { sendMail } from "../utils/mailer.js";
+import { orderDeliveredTemplate, orderShippedTemplate } from "../utils/mailTemplates.js";
 dotenv.config();
 
 export const getAdminDashboardData = async (req, res) => {
@@ -19,11 +21,15 @@ export const getAdminDashboardData = async (req, res) => {
 };
 
 
+
+
 export const updateOrder = async (req, res) => {
   const { orderId } = req.params;
   const { payment_status, expected_delivery_date } = req.body;
+  console.log(req.body,"-------------------")
 
   try {
+    // Update order
     const updateQuery = `
       UPDATE orders
       SET payment_status = $1,
@@ -32,18 +38,71 @@ export const updateOrder = async (req, res) => {
       WHERE id = $3
       RETURNING *;
     `;
-    const result = await pool.query(updateQuery, [payment_status, expected_delivery_date, orderId]);
+    const result = await pool.query(updateQuery, [
+      payment_status,
+      expected_delivery_date,
+      orderId,
+    ]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    res.json({ message: "Order updated successfully", order: result.rows[0] });
+    // Fetch order details with products + user info
+    const { rows: orderDetails } = await pool.query(
+      `SELECT 
+         o.id as order_id,
+         o.total_price,
+         o.payment_status,
+         o.expected_delivery_date,
+         u.name as customer_name,
+         u.email as customer_email,
+         json_agg(json_build_object(
+           'product_name', p.name,
+           'price', oi.price,
+           'quantity', oi.quantity,
+           'total', oi.total
+         )) as products
+       FROM orders o
+       JOIN users u ON o.user_id = u.id
+       JOIN order_items oi ON o.id = oi.order_id
+       JOIN products p ON oi.product_id = p.id
+       WHERE o.id = $1
+       GROUP BY o.id, u.name, u.email;`,
+      [orderId]
+    );
+
+    const order = orderDetails[0];
+
+    if (payment_status === "shipped") {
+      console.log(payment_status,"payent status;;;;;")
+      await sendMail(
+        order.customer_email,
+        "🚚 Your order has been shipped!",
+        orderShippedTemplate(order)
+      );
+    }
+
+    if (payment_status === "delivered") {
+      await sendMail(
+        order.customer_email,
+        "📦 Your order has been delivered!",
+        orderDeliveredTemplate(order)
+      );
+    }
+
+    res.json({
+      message: "Order updated successfully",
+      order,
+    });
   } catch (error) {
-    console.error(error);
+    console.error("❌ Order update error:", error);
     res.status(500).json({ error: "Failed to update order" });
   }
 };
+
+
+
 
 export const allproducts=async(req,res)=>{
 

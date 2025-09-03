@@ -145,55 +145,55 @@ export const getOrderById = async (req, res) => {
   }
 };
 
-export const updateOrderStatus = async (req, res) => {
-  const { orderId, razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+// export const updateOrderStatus = async (req, res) => {
+//   const { orderId, razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+//   const client = await pool.connect();
+//   try {
+//     await client.query("BEGIN");
 
-    // ✅ Update payment details
-    const orderResult = await client.query(
-      `UPDATE orders 
-       SET payment_status = 'paid',
-           razorpay_payment_id = $1,
-           razorpay_order_id = $2,
-           razorpay_signature = $3,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4
-       RETURNING *`,
-      [razorpay_payment_id, razorpay_order_id, razorpay_signature, orderId]
-    );
+//     // ✅ Update payment details
+//     const orderResult = await client.query(
+//       `UPDATE orders 
+//        SET payment_status = 'paid',
+//            razorpay_payment_id = $1,
+//            razorpay_order_id = $2,
+//            razorpay_signature = $3,
+//            updated_at = CURRENT_TIMESTAMP
+//        WHERE id = $4
+//        RETURNING *`,
+//       [razorpay_payment_id, razorpay_order_id, razorpay_signature, orderId]
+//     );
 
-    if (orderResult.rows.length === 0) {
-      throw new Error("Order not found");
-    }
+//     if (orderResult.rows.length === 0) {
+//       throw new Error("Order not found");
+//     }
 
-    // ✅ Reduce stock for each product in this order
-    const itemsResult = await client.query(
-      `SELECT product_id, quantity FROM order_items WHERE order_id = $1`,
-      [orderId]
-    );
+//     // ✅ Reduce stock for each product in this order
+//     const itemsResult = await client.query(
+//       `SELECT product_id, quantity FROM order_items WHERE order_id = $1`,
+//       [orderId]
+//     );
 
-    for (const item of itemsResult.rows) {
-      await client.query(
-        `SELECT reduce_stock($1::INT, $2::INT)`,
-        [item.product_id, item.quantity]
-      );
-    }
+//     for (const item of itemsResult.rows) {
+//       await client.query(
+//         `SELECT reduce_stock($1::INT, $2::INT)`,
+//         [item.product_id, item.quantity]
+//       );
+//     }
 
-    await client.query("COMMIT");
+//     await client.query("COMMIT");
 
-    res.json({
-      message: "✅ Payment successful & stock updated",
-      order: orderResult.rows[0],
-    });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("❌ Error updating order status:", err);
-    res.status(500).json({ error: err.message });
-  } finally {
-    client.release();
-  }
-};
+//     res.json({
+//       message: "✅ Payment successful & stock updated",
+//       order: orderResult.rows[0],
+//     });
+//   } catch (err) {
+//     await client.query("ROLLBACK");
+//     console.error("❌ Error updating order status:", err);
+//     res.status(500).json({ error: err.message });
+//   } finally {
+//     client.release();
+//   }
+// };
 
