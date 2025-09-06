@@ -179,6 +179,41 @@ export const updateProduct = async (req, res) => {
 };
 
 
+export const addcategory = async (req, res) => {
+  const { category, description } = req.body; 
+
+  if (!category) {
+    return res.status(400).json({ message: "Category name is required" });
+  }
+
+  try {
+    const query = `
+      INSERT INTO categories (name, description)
+      VALUES ($1, $2)
+      RETURNING *;
+    `;
+    
+    const values = [category, description || null];
+
+    const result = await pool.query(query, values);
+
+    return res.status(201).json({
+      message: "Category added successfully",
+      category: result.rows[0],
+    });
+
+  } catch (err) {
+    console.error("Error adding category:", err);
+    if (err.code === '23505') {
+      return res.status(400).json({ message: "Category already exists" });
+    }
+
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+
 
 export const categories=async(req,res)=>{
     try {

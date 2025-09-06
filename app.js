@@ -13,6 +13,7 @@ import cartRoutes from "./src/routes/cartRoutes.js";
 import shippingRoutes from "./src/routes/shippingRoutes.js";
 import reviewRoutes from "./src/routes/reviewRoutes.js";
 import adminRoutes from "./src/routes/adminRoutes.js";
+import wishlistRoutes from "./src/routes/wishlistRoutes.js";
 
 const options = {
   info: {
@@ -54,6 +55,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/wishlist", wishlistRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

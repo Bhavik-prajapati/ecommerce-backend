@@ -12,10 +12,11 @@ import pool from "../config/db.js";
 
 export const getProducts = async (req, res) => {
   try {
-    const { limit = 8, offset = 0 } = req.query; 
+    const { limit = 8, offset = 0 } = req.query;
+
     const result = await pool.query(
-      "SELECT * FROM products ORDER BY id DESC LIMIT $1 OFFSET $2",
-      [limit, offset]
+      "SELECT * FROM get_products_with_reviews($1, $2)",
+      [limit, offset]   // ✅ put inside array as second argument
     );
 
     const countResult = await pool.query("SELECT COUNT(*) FROM products");

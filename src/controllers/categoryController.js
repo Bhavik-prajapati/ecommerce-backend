@@ -20,11 +20,11 @@ export const getCategoryById = async (req, res) => {
 };
 
 export const createCategory = async (req, res) => {
-  const { name, description } = req.body;
+  const { category, description } = req.body;
   try {
     const result = await pool.query(
       "INSERT INTO categories (name, description) VALUES ($1, $2) RETURNING *",
-      [name, description]
+      [category, description]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

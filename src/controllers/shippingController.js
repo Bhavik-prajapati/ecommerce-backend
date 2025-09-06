@@ -18,7 +18,7 @@ export const addShippingAddress = async (req, res) => {
   }
 };
 
-export const getShippingAddresses = async (req, res) => {
+export const getShippingAddresses = async (req, res) => { 
   const user_id = req.user.id;
   try {
     const result = await pool.query(
